@@ -39,5 +39,18 @@ model {
 }
 generated quantities {
    int<lower=0, upper=total_clips> n_pos_pred;
-    n_pos_pred = binomial_rng(total_clips, theta);
+    // this will be the sum of n_pos and the predicted number of positive clips
+    // the predicted positives are bernoulli trials with probability that the datapoint came from the positive distribution
+    // do this in curly braces
+    {
+        array[N_unlabeled] real prob_pos; // no constraints allowed on local variables
+        for (n_unlab in 1:N_unlabeled) {
+            // p(pos) = theta * p(pos|score) / p(score)
+            // p(data) = log_mix(theta, p(pos|score), p(neg|score))
+            prob_pos[n_unlab] = exp(log(theta) + normal_lpdf(scores_unlabeled[n_unlab] | mu[2], sigma[2]) - log_mix(theta,
+                            normal_lpdf(scores_unlabeled[n_unlab] | mu[2], sigma[2]),
+                            normal_lpdf(scores_unlabeled[n_unlab] | mu[1], sigma[1])));
+        }
+        n_pos_pred = n_pos + sum(bernoulli_rng(prob_pos));
+    }
 }
