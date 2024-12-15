@@ -26,17 +26,17 @@ transformed data {
     eval_points[n] = min(all_scores) + n * step_size;
   }
   int xlen = N_points + N_labeled;
-  array[xlen] real x;
+  array[xlen] real x; // all the points at which the GP will be evaluated
   for (n in 1 : N_labeled) {
-    x[n] = scores_labeled[n];
+    x[n] = scores_labeled[n]; // labeled points
   }
   for (n in 1 : N_points) {
-    x[N_labeled + n] = eval_points[n];
+    x[N_labeled + n] = eval_points[n]; // inducing points
   }
   array[N_points] int num_clips = rep_array(0, N_points); 
-  // loop through all the unlabeled clips and assign them to the nearest point //
+  // loop through all the unlabeled clips and assign them to the nearest inducing point //
   for (clip in 1 : N_unlabeled) {
-    real min_dist = 100; // initialize to a large value
+    real min_dist = 1000; // initialize to a large value
     int nearest_point_idx;
     for (point in 1 : N_points) {
       real dist = abs(scores_unlabeled[clip] - eval_points[point]);
@@ -54,14 +54,14 @@ transformed data {
 }
 parameters {
   real<lower=0> rho;
-  real<lower=0> alpha;
+  // real<lower=0> alpha;
   vector[xlen] eta;
 }
 transformed parameters {
   vector[xlen] f;
   {
     matrix[xlen, xlen] L_K;
-    matrix[xlen, xlen] K = gp_exp_quad_cov(x, alpha, rho);
+    matrix[xlen, xlen] K = gp_exp_quad_cov(x, 1, 1); // put rho in here if you want to estimate it
     
     // diagonal elements
     for (n in 1 : xlen) {
@@ -71,13 +71,13 @@ transformed parameters {
     L_K = cholesky_decompose(K);
     f = L_K * eta; 
     for (n in 1 : xlen) {
-      f[n] = f[n] + x[n]; // shift the mean to the score (i.e. prior is logits are calibrated)
+      f[n] = x[n] + f[n]; // shift the mean to the score (i.e. prior is logits are calibrated)
     }
   }
 }
 model {
   rho ~ inv_gamma(3, 0.75);
-  alpha ~ normal(0, 1);
+  // alpha ~ normal(0, 3);
   eta ~ normal(0, 1);
   labels ~ bernoulli_logit(f[1 : N_labeled]);
 }

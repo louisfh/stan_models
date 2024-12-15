@@ -35,10 +35,10 @@ model {
                 target += log(theta) + normal_lpdf(scores_labeled[n_lab] | mu[2], sigma[2]);
             }
         }
-    // also increment by the binomial likelihood of the labels
-    if (N_labeled > 0) {
-        target += binomial_lpmf(n_pos | N_labeled, theta);
-    }
+    // // also increment by the binomial likelihood of the labels
+    // if (N_labeled > 0) {
+    //     target += binomial_lpmf(n_pos | N_labeled, theta);
+    // }
 }
 generated quantities {
    int<lower=0> n_pos_pred;
