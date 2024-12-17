@@ -7,7 +7,6 @@ data {
     vector[N_labeled] sampling_weight; // p(sampling). Not used in GP model
 }
 transformed data {
-  real delta = 1e-9;
   //concat labeled and unlabeled scores //
   array[N_labeled + N_unlabeled] real all_scores; 
   for (s_id in 1 : N_labeled) {
@@ -16,11 +15,15 @@ transformed data {
   for (s_id in 1 : N_unlabeled) {
     all_scores[N_labeled + s_id] = scores_unlabeled[s_id];
   }
-  //////////////////////////////////
+  real<lower=0> sd_scores = sd(all_scores);
 
+  //////////////////////////////////
   /// make points at which latent GP is evaluated ///
-  int N_points = 100; // Number of inducing points
-  real step_size = (max(all_scores) - min(all_scores)) / N_points;
+  int N_points = 150; // Number of inducing points
+  // try spacing them so they're evenly spaces in the density of the data
+  // i.e. order the data, find step size, and then space the inducing points evenly
+
+  real step_size = (max(scores_unlabeled) - min(scores_unlabeled)) / N_points;
   array[N_points] real eval_points;
   for (n in 1 : N_points) {
     eval_points[n] = min(all_scores) + n * step_size;
@@ -61,11 +64,11 @@ transformed parameters {
   vector[xlen] f;
   {
     matrix[xlen, xlen] L_K;
-    matrix[xlen, xlen] K = gp_exp_quad_cov(x, 1, 1); // put rho in here if you want to estimate it
+    matrix[xlen, xlen] K = gp_exp_quad_cov(x, 1, rho); 
     
     // diagonal elements
     for (n in 1 : xlen) {
-      K[n, n] = K[n, n] + delta; // add small value to diag to ensure positive definiteness
+      K[n, n] = K[n, n] + 1e-9; // add small value to diag to ensure positive definiteness
     }
     
     L_K = cholesky_decompose(K);
@@ -76,7 +79,8 @@ transformed parameters {
   }
 }
 model {
-  rho ~ inv_gamma(3, 0.75);
+  // use a inv_gamma with mean 
+  rho ~ normal(1, sd_scores/2);
   // alpha ~ normal(0, 3);
   eta ~ normal(0, 1);
   labels ~ bernoulli_logit(f[1 : N_labeled]);

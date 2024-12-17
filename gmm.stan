@@ -8,6 +8,8 @@ array[N_labeled] int<lower=0, upper=1> labels;
 transformed data {
 int<lower=0> n_pos = sum(labels);
 int<lower=0> n_neg = N_labeled - n_pos;
+real<lower=0> sd_scores = sd(scores_unlabeled);
+real mu_guess = mean(scores_unlabeled);
 }
 parameters {
     //Should use ordered vector to ensure no switching of mu_0 and mu_1
@@ -17,9 +19,10 @@ parameters {
 } 
 model {
     // priors
-    for (i in 1:2) {
-        mu[i] ~ normal(0, 3);
-    }
+    mu[1] ~ normal(mu_guess - sd_scores, sd_scores);
+    mu[2] ~ normal(mu_guess + sd_scores, sd_scores);
+    // a good guess is the sd of the scores
+    sigma ~ normal(sd_scores, sd_scores);
     sigma ~ cauchy(0, 5);
 
     // likelihood
